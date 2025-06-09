@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>KeyShot Render Dashboard</title>
+  <style>
+    body {
+      background-color: #f7f9fc;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .file-section, .result-section {
+      margin-bottom: 24px;
+    }
+    input[type="file"] {
+      display: block;
+      margin-bottom: 16px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .file-list {
+      list-style-type: none;
+      padding: 0;
+    }
+    .file-list li {
+      margin: 8px 0;
+      padding: 8px;
+      background: #f1f1f1;
+      border-radius: 6px;
+    }
+    .logout {
+      float: right;
+      margin-top: -10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <button class="logout" onclick="logout()">로그아웃</button>
+    <h2>🎨 KeyShot 렌더 대시보드</h2>
+
+    <div class="file-section">
+      <input type="file" id="upload-input" multiple>
+      <button onclick="uploadFiles()">렌더링 시작</button>
+    </div>
+
+    <div class="result-section">
+      <h3>🗂 렌더링 결과 파일 목록</h3>
+      <ul class="file-list" id="file-list"></ul>
+    </div>
+  </div>
+
+  <script>
+    const allowedExtensions = ['.bip', '.ksp', '.fbx', '.obj', '.stp', '.step', '.iges', '.igs', '.3ds'];
+
+    function logout() {
+      localStorage.removeItem('token');
+      location.href = '/';
+    }
+
+    async function uploadFiles() {
+      const input = document.getElementById('upload-input');
+      const files = input.files;
+      if (!files.length) return alert('파일을 선택하세요.');
+
+      // 확장자 검사
+      for (const file of files) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!allowedExtensions.includes('.' + ext)) {
+          alert(`지원되지 않는 파일 형식입니다: .${ext}`);
+          return;
+        }
+      }
+
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      for (const file of files) {
+        formData.append('files', file);
+      }
+
+      const res = await fetch('/render', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+        body: formData
+      });
+
+      const result = await res.json();
+      if (res.ok) {
+        alert('렌더링 완료!');
+        fetchFileList();
+      } else {
+        alert('실패: ' + result.message);
+      }
+    }
+
+    async function fetchFileList() {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/render/files', {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+
+      const result = await res.json();
+      const fileList = document.getElementById('file-list');
+      fileList.innerHTML = '';
+
+      result.files.forEach(file => {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = file.url;
+        a.innerText = file.name;
+        a.target = '_blank';
+        li.appendChild(a);
+        fileList.appendChild(li);
+      });
+    }
+
+    fetchFileList();
+  </script>
+</body>
+</html>

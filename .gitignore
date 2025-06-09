@@ -1,0 +1,19 @@
+# 환경 변수 파일
+.env
+
+# 키파일
+keys/
+
+# Node.js 관련
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# 운영 중 생성되는 파일
+uploads/
+rendered/
+*.log
+
+# VS Code 환경 설정
+.vscode/

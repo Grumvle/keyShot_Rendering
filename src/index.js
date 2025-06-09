@@ -1,0 +1,25 @@
+const express = require('express');
+const path = require('path');
+require('dotenv').config();
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// 라우터 등록
+const authRouter = require('./controllers/authController');
+app.use('/auth', authRouter);
+const fileRouter = require('./controllers/fileController');
+app.use('/files', fileRouter);
+const renderRouter = require('./controllers/renderController');
+app.use('/render', renderRouter);
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
+app.listen(port, () => {
+  console.log(`✅ KeyShot Render Server 실행 중: http://localhost:${port}`);
+});

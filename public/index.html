@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>KeyShot Render Server - 로그인</title>
+  <style>
+    body {
+      background-color: #f0f2f5;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .login-box {
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+      width: 320px;
+    }
+    .login-box h2 {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .login-box input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 16px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
+    .login-box button {
+      width: 100%;
+      padding: 12px;
+      background-color: #007bff;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .login-box button:hover {
+      background-color: #0056b3;
+    }
+    #result {
+      margin-top: 16px;
+      text-align: center;
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h2>🔐 KeyShot 로그인</h2>
+    <form id="login-form">
+      <input type="text" id="id" placeholder="아이디" required>
+      <input type="password" id="pw" placeholder="비밀번호" required>
+      <button type="submit">로그인</button>
+    </form>
+    <p id="result"></p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/node-forge@1.3.1/dist/forge.min.js"></script>
+  <script>
+    async function getPublicKey() {
+      const res = await fetch('/auth/public-key');
+      return res.text();
+    }
+
+    async function encryptLogin(id, pw, publicKeyPem) {
+      const publicKey = forge.pki.publicKeyFromPem(publicKeyPem);
+      const data = JSON.stringify({ id, password: pw });
+      const encrypted = publicKey.encrypt(data, 'RSA-OAEP');
+      return forge.util.encode64(encrypted);
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('id').value;
+      const pw = document.getElementById('pw').value;
+
+      try {
+        const pem = await getPublicKey();
+        const encrypted = await encryptLogin(id, pw, pem);
+
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ encrypted })
+        });
+
+        const result = await res.json();
+        if (res.ok) {
+          localStorage.setItem('token', result.token);
+          location.href = '/dashboard.html';
+        } else {
+          document.getElementById('result').innerText = '❌ 로그인 실패: ' + result.message;
+        }
+      } catch (err) {
+        document.getElementById('result').innerText = '❌ 오류: ' + err;
+      }
+    });
+  </script>
+</body>
+</html>
