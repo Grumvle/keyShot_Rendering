@@ -20,6 +20,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-app.listen(port, '0.0.0.0', () => {
+// HTTPS 서버 실행
+https.createServer(credentials, app).listen(port, '0.0.0.0', () => {
   console.log(`✅ KeyShot Render Server 실행 중`);
 });
