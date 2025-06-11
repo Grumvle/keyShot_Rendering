@@ -44,11 +44,12 @@ async function processQueue() {
     isRendering = false;
     return processQueue();
   }
-
+  const sceneInputPath = path.resolve(file.path); // 업로드된 원본 파일 (예: .bip)
+  
   const keyshot = spawn(keyshotPath, [
     '-render',
-    '-scene', path.resolve(file.path),
-    '-output', path.resolve(outputPath)
+    '-scene', sceneInputPath,   // ✅ .bip나 .fbx 입력 파일
+    '-output', outputPath       // ✅ 출력 파일 경로 (.png)
   ]);
 
   keyshot.on('close', async (code) => {
