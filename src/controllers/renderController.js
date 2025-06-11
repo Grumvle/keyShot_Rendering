@@ -44,12 +44,20 @@ async function processQueue() {
     isRendering = false;
     return processQueue();
   }
-  const sceneInputPath = path.resolve(file.path); // 업로드된 원본 파일 (예: .bip)
-  
+
+  const originalExt = path.extname(file.originalname);              // ex: '.bip'
+  const originalNameWithExt = `${path.parse(file.originalname).name}${originalExt}`;
+  const newUploadPath = path.resolve('uploads', originalNameWithExt);
+
+  // 확장자 붙여서 새로운 경로로 파일 복사 (또는 rename)
+  await rename(file.path, newUploadPath);
+
+  const sceneInputPath = newUploadPath;
+
   const keyshot = spawn(keyshotPath, [
     '-render',
-    '-scene', sceneInputPath,   // ✅ .bip나 .fbx 입력 파일
-    '-output', outputPath       // ✅ 출력 파일 경로 (.png)
+    '-scene', sceneInputPath,
+    '-output', outputPath
   ]);
 
   keyshot.on('close', async (code) => {
