@@ -116,7 +116,7 @@ router.post('/', upload.array('files'), async (req, res) => {
     return res.status(500).json({ message: 'KeyShot 실행파일을 찾을 수 없습니다.' });
   }
 
-  const uploadDir = 'rendered';
+  const uploadDir = 'uploads';
   mkdirp.sync(uploadDir);
   let validCount = 0;
 
@@ -129,7 +129,7 @@ router.post('/', upload.array('files'), async (req, res) => {
     }
 
     const fileName = String(path.parse(file.originalname).name);
-    const outputPath = path.join(uploadDir, `${fileName}.png`);
+    const outputPath = path.resolve('rendered', `${fileName}.png`);
 
     renderQueue.push({ file, token, fileName, outputPath, uploadDir, FILEBROWSER_URL });
     validCount++;
