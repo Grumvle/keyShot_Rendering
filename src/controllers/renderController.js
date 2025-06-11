@@ -41,30 +41,45 @@ async function processQueue() {
 
   const keyshotPath = findKeyShotPath();
   if (!keyshotPath) {
-    fs.unlinkSync(file.path);
     console.error('[ERROR] KeyShot 실행파일을 찾을 수 없습니다.');
     isRendering = false;
     return processQueue();
   }
 
-  const originalExt = path.extname(file.originalname);
+  const originalExt = path.extname(file.originalname);               // ex: '.bip'
   const originalNameWithExt = `${path.parse(file.originalname).name}${originalExt}`;
   const newUploadPath = path.resolve('uploads', originalNameWithExt);
 
-  // 원본 파일을 새로운 이름으로 이동 (.bip → 이름 보존)
-  await rename(file.path, newUploadPath);
+  try {
+    await rename(file.path, newUploadPath);
+    console.log(`[INFO] 업로드 파일 rename 완료: ${file.path} → ${newUploadPath}`);
+  } catch (e) {
+    console.error(`[ERROR] 파일 rename 실패:`, e);
+    isRendering = false;
+    return processQueue();
+  }
 
   const sceneInputPath = newUploadPath;
+  console.log(`[INFO] 렌더링 입력 파일 경로: ${sceneInputPath}`);
+  console.log(`[INFO] 렌더링 출력 파일 경로: ${outputPath}`);
 
   const keyshot = spawn(keyshotPath, [
     '-render',
-    '-scene', sceneInputPath,     // ✅ 입력 파일 (.bip 등)
-    '-output', outputPath         // ✅ 출력 경로 (rendered/*.png)
+    '-scene', sceneInputPath,
+    '-output', outputPath
   ]);
+
+  keyshot.stdout.on('data', data => {
+    console.log(`[KeyShot] ${data}`);
+  });
+
+  keyshot.stderr.on('data', data => {
+    console.error(`[KeyShot Error] ${data}`);
+  });
 
   keyshot.on('close', async (code) => {
     if (code !== 0) {
-      console.error(`[ERROR] 렌더링 실패 (KeyShot 종료 코드 ${code}): ${fileName}`);
+      console.error(`[ERROR] KeyShot 렌더링 실패 (코드 ${code})`);
       try {
         fs.existsSync(sceneInputPath) && fs.unlinkSync(sceneInputPath);
       } catch {}
@@ -89,12 +104,11 @@ async function processQueue() {
     } catch (err) {
       console.error(`[ERROR] 업로드 실패: ${fileName}`, err);
     } finally {
-      // 남은 파일 정리
       try {
         fs.existsSync(sceneInputPath) && fs.unlinkSync(sceneInputPath);
         fs.existsSync(outputPath) && fs.unlinkSync(outputPath);
       } catch (e) {
-        console.warn('[WARN] 파일 정리 실패:', e.message);
+        console.warn('[WARN] 파일 정리 중 오류:', e.message);
       }
 
       isRendering = false;
@@ -102,7 +116,6 @@ async function processQueue() {
     }
   });
 }
-
 const allowedExtensions = ['.bip', '.ksp', '.fbx', '.obj', '.stp', '.step', '.iges', '.igs', '.3ds'];
 
 router.post('/', upload.array('files'), async (req, res) => {
