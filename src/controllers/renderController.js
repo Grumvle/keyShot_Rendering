@@ -1,4 +1,4 @@
-// ✅ 리팩토링된 renderController.js - res 제거 및 로그 기반 진행 상태 확인 구조
+// ✅ KeyShot 렌더링 서버 컨트롤러 (정확한 인자 순서 및 로그 개선 반영)
 
 const express = require('express');
 const router = express.Router();
@@ -37,7 +37,7 @@ async function processQueue() {
   isRendering = true;
 
   const task = renderQueue.shift();
-  const { file, token, fileName, outputPath, uploadDir, FILEBROWSER_URL } = task;
+  const { file, token, fileName, outputPath, FILEBROWSER_URL } = task;
 
   const keyshotPath = findKeyShotPath();
   if (!keyshotPath) {
@@ -46,43 +46,35 @@ async function processQueue() {
     return processQueue();
   }
 
-  const originalExt = path.extname(file.originalname);               // ex: '.bip'
-  const originalNameWithExt = `${path.parse(file.originalname).name}${originalExt}`;
-  const newUploadPath = path.resolve('uploads', originalNameWithExt);
+  const ext = path.extname(file.originalname);
+  const renamedPath = path.resolve('uploads', `${path.parse(file.originalname).name}${ext}`);
 
   try {
-    await rename(file.path, newUploadPath);
-    console.log(`[INFO] 업로드 파일 rename 완료: ${file.path} → ${newUploadPath}`);
+    await rename(file.path, renamedPath);
+    console.log(`[INFO] 업로드 파일 rename 완료: ${file.path} → ${renamedPath}`);
   } catch (e) {
     console.error(`[ERROR] 파일 rename 실패:`, e);
     isRendering = false;
     return processQueue();
   }
 
-  const sceneInputPath = newUploadPath;
+  const sceneInputPath = renamedPath;
   console.log(`[INFO] 렌더링 입력 파일 경로: ${sceneInputPath}`);
   console.log(`[INFO] 렌더링 출력 파일 경로: ${outputPath}`);
 
-  const keyshot = spawn(keyshotPath, [
-    '-render',
-    '-scene', sceneInputPath,
-    '-output', outputPath
-  ]);
+  const args = ['-render', '-scene', sceneInputPath, '-output', outputPath];
+  console.log('[SPAWN] KeyShot 실행 경로:', keyshotPath);
+  console.log('[SPAWN] KeyShot 인자:', args);
 
-  keyshot.stdout.on('data', data => {
-    console.log(`[KeyShot] ${data}`);
-  });
+  const keyshot = spawn(keyshotPath, args);
 
-  keyshot.stderr.on('data', data => {
-    console.error(`[KeyShot Error] ${data}`);
-  });
+  keyshot.stdout.on('data', data => console.log(`[KeyShot] ${data}`));
+  keyshot.stderr.on('data', data => console.error(`[KeyShot Error] ${data}`));
 
   keyshot.on('close', async (code) => {
     if (code !== 0) {
       console.error(`[ERROR] KeyShot 렌더링 실패 (코드 ${code})`);
-      try {
-        fs.existsSync(sceneInputPath) && fs.unlinkSync(sceneInputPath);
-      } catch {}
+      try { fs.existsSync(sceneInputPath) && fs.unlinkSync(sceneInputPath); } catch {}
       isRendering = false;
       return processQueue();
     }
@@ -116,6 +108,7 @@ async function processQueue() {
     }
   });
 }
+
 const allowedExtensions = ['.bip', '.ksp', '.fbx', '.obj', '.stp', '.step', '.iges', '.igs', '.3ds'];
 
 router.post('/', upload.array('files'), async (req, res) => {
@@ -133,8 +126,9 @@ router.post('/', upload.array('files'), async (req, res) => {
     return res.status(500).json({ message: 'KeyShot 실행파일을 찾을 수 없습니다.' });
   }
 
-  const uploadDir = 'uploads';
-  mkdirp.sync(uploadDir);
+  mkdirp.sync('uploads');
+  mkdirp.sync('rendered');
+
   let validCount = 0;
 
   for (const file of files) {
@@ -145,10 +139,10 @@ router.post('/', upload.array('files'), async (req, res) => {
       continue;
     }
 
-    const fileName = String(path.parse(file.originalname).name);
+    const fileName = path.parse(file.originalname).name;
     const outputPath = path.resolve('rendered', `${fileName}.png`);
 
-    renderQueue.push({ file, token, fileName, outputPath, uploadDir, FILEBROWSER_URL });
+    renderQueue.push({ file, token, fileName, outputPath, FILEBROWSER_URL });
     validCount++;
   }
 
