@@ -47,25 +47,27 @@ async function processQueue() {
     return processQueue();
   }
 
-  const originalExt = path.extname(file.originalname);              // ex: '.bip'
+  const originalExt = path.extname(file.originalname);
   const originalNameWithExt = `${path.parse(file.originalname).name}${originalExt}`;
   const newUploadPath = path.resolve('uploads', originalNameWithExt);
 
-  // 확장자 붙여서 새로운 경로로 파일 복사 (또는 rename)
+  // 원본 파일을 새로운 이름으로 이동 (.bip → 이름 보존)
   await rename(file.path, newUploadPath);
 
   const sceneInputPath = newUploadPath;
 
   const keyshot = spawn(keyshotPath, [
     '-render',
-    '-scene', sceneInputPath,
-    '-output', outputPath
+    '-scene', sceneInputPath,     // ✅ 입력 파일 (.bip 등)
+    '-output', outputPath         // ✅ 출력 경로 (rendered/*.png)
   ]);
 
   keyshot.on('close', async (code) => {
     if (code !== 0) {
-      fs.unlinkSync(file.path);
-      console.error(`[ERROR] 렌더링 실패: ${fileName}`);
+      console.error(`[ERROR] 렌더링 실패 (KeyShot 종료 코드 ${code}): ${fileName}`);
+      try {
+        fs.existsSync(sceneInputPath) && fs.unlinkSync(sceneInputPath);
+      } catch {}
       isRendering = false;
       return processQueue();
     }
@@ -84,18 +86,20 @@ async function processQueue() {
       });
 
       console.log(`[SUCCESS] 렌더링 및 업로드 완료: ${fileName}.png`);
-      fs.unlinkSync(file.path);
-      fs.unlinkSync(outputPath);
     } catch (err) {
       console.error(`[ERROR] 업로드 실패: ${fileName}`, err);
+    } finally {
+      // 남은 파일 정리
       try {
-        fs.unlinkSync(file.path);
-        fs.unlinkSync(outputPath);
-      } catch {}
-    }
+        fs.existsSync(sceneInputPath) && fs.unlinkSync(sceneInputPath);
+        fs.existsSync(outputPath) && fs.unlinkSync(outputPath);
+      } catch (e) {
+        console.warn('[WARN] 파일 정리 실패:', e.message);
+      }
 
-    isRendering = false;
-    processQueue();
+      isRendering = false;
+      processQueue();
+    }
   });
 }
 
