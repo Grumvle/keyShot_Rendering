@@ -1,4 +1,3 @@
-// renderController with queue and multiple file support
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -12,7 +11,7 @@ const { extractUserId } = require('../utils/jwtUtil');
 const mkdirp = require('mkdirp');
 require('dotenv').config();
 
-// KeyShot 실행 경로 자동 감지
+// ✅ KeyShot 실행 경로 자동 감지
 function findKeyShotPath() {
   const possiblePaths = [
     'C:\\Program Files\\KeyShot11\\bin\\KeyShot.exe',
@@ -28,7 +27,7 @@ function findKeyShotPath() {
   return envPath && fs.existsSync(envPath) ? envPath : null;
 }
 
-// 렌더링 작업 큐
+// ✅ 렌더링 작업 큐
 const renderQueue = [];
 let isRendering = false;
 
@@ -37,16 +36,9 @@ async function processQueue() {
 
   isRendering = true;
   const task = renderQueue.shift();
-
   const {
-    file,
-    userId,
-    token,
-    fileName,
-    outputPath,
-    uploadDir,
-    FILEBROWSER_URL,
-    res
+    file, userId, token, fileName,
+    outputPath, uploadDir, FILEBROWSER_URL, res
   } = task;
 
   const keyshotPath = findKeyShotPath();
@@ -78,9 +70,9 @@ async function processQueue() {
 
       await axios.post(`${FILEBROWSER_URL}/api/tus/KeyShot/${fileName}.png?override=true`, formData, {
         headers: {
-            'X-Auth': token,
-            'Cookie': `auth=${token}`,
-            ...formData.getHeaders?.()
+          'x_auth': token,
+          'Cookie': `x_auth=${token}`,
+          ...formData.getHeaders()
         }
       });
 
@@ -102,38 +94,47 @@ async function processQueue() {
   });
 }
 
+// ✅ 허용 확장자
 const allowedExtensions = ['.bip', '.ksp', '.fbx', '.obj', '.stp', '.step', '.iges', '.igs', '.3ds'];
 
-// POST /render 다중파일 순차 처리
+// ✅ POST /render 다중 파일 순차 렌더링
 router.post('/', upload.array('files'), async (req, res) => {
-    const file = req.file;
+  const files = req.files;
+  const token = req.headers.authorization?.split(' ')[1];
+  const FILEBROWSER_URL = process.env.FILEBROWSER_URL;
+
+  if (!token || !files || files.length === 0) {
+    return res.status(400).json({ message: '파일 또는 인증 토큰 누락' });
+  }
+
+  const userId = extractUserId(token);
+  const uploadDir = path.join('rendered', userId);
+  mkdirp.sync(uploadDir);
+
+  let validCount = 0;
+
+  for (const file of files) {
     const ext = path.extname(file.originalname).toLowerCase();
-    const allowedExtensions = ['.bip', '.ksp', '.fbx', '.obj', '.stp', '.step', '.iges', '.igs', '.3ds'];
 
     if (!allowedExtensions.includes(ext)) {
-        try { fs.unlinkSync(file.path); } catch {}
-        return res.status(400).json({ message: `지원되지 않는 파일 확장자입니다: ${ext}` });
-    }
-    const token = req.headers.authorization?.split(' ')[1];
-    const FILEBROWSER_URL = process.env.FILEBROWSER_URL;
-
-    if (!token || !files || files.length === 0) {
-        return res.status(400).json({ message: '파일 또는 인증 토큰 누락' });
+      try { fs.unlinkSync(file.path); } catch {}
+      console.warn(`⛔️ 지원되지 않는 확장자 무시됨: ${ext}`);
+      continue;
     }
 
-    const userId = extractUserId(token);
-    const uploadDir = path.join('rendered', userId);
-    mkdirp.sync(uploadDir);
+    const fileName = path.parse(file.originalname).name;
+    const outputPath = path.join(uploadDir, `${fileName}.png`);
 
-    for (const file of files) {
-        const fileName = path.parse(file.originalname).name;
-        const outputPath = path.join(uploadDir, `${fileName}.png`);
+    renderQueue.push({ file, userId, token, fileName, outputPath, uploadDir, FILEBROWSER_URL, res });
+    validCount++;
+  }
 
-        renderQueue.push({ file, userId, token, fileName, outputPath, uploadDir, FILEBROWSER_URL, res });
-    }
+  if (validCount === 0) {
+    return res.status(400).json({ message: '유효한 확장자의 파일이 없습니다.' });
+  }
 
-    processQueue();
-    res.json({ message: '렌더링 작업이 대기열에 추가되었습니다.', count: files.length });
+  processQueue();
+  res.json({ message: '렌더링 작업이 대기열에 추가되었습니다.', count: validCount });
 });
 
 module.exports = router;
