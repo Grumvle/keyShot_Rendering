@@ -16,11 +16,11 @@ require('dotenv').config();
 
 function findKeyShotPath() {
   const possiblePaths = [
-    'C:\\Program Files\\KeyShot11\\bin\\KeyShot.exe',
-    'C:\\Program Files\\KeyShot10\\bin\\KeyShot.exe',
-    'C:\\Program Files\\KeyShot9\\bin\\KeyShot.exe',
-    'C:\\Program Files\\Luxion\\KeyShot\\bin\\KeyShot.exe',
-    'D:\\Program Files\\KeyShot11\\bin\\KeyShot.exe'
+    'C:\\Program Files\\KeyShot11\\bin\\keyshot_headless.exe',
+    'C:\\Program Files\\KeyShot10\\bin\\keyshot_headless.exe',
+    'C:\\Program Files\\KeyShot9\\bin\\keyshot_headless.exe',
+    'C:\\Program Files\\Luxion\\KeyShot\\bin\\keyshot_headless.exe',
+    'D:\\Program Files\\KeyShot11\\bin\\keyshot_headless.exe'
   ];
   for (const filePath of possiblePaths) {
     if (fs.existsSync(filePath)) return filePath;
