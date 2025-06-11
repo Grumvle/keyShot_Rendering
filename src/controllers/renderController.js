@@ -1,3 +1,5 @@
+// ✅ 리팩토링된 renderController.js - res 제거 및 로그 기반 진행 상태 확인 구조
+
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -7,11 +9,9 @@ const { spawn } = require('child_process');
 const upload = multer({ dest: 'uploads/' });
 const axios = require('axios');
 const FormData = require('form-data');
-const { extractUserId } = require('../utils/jwtUtil');
 const mkdirp = require('mkdirp');
 require('dotenv').config();
 
-// ✅ KeyShot 실행 경로 자동 감지
 function findKeyShotPath() {
   const possiblePaths = [
     'C:\\Program Files\\KeyShot11\\bin\\KeyShot.exe',
@@ -27,24 +27,20 @@ function findKeyShotPath() {
   return envPath && fs.existsSync(envPath) ? envPath : null;
 }
 
-// ✅ 렌더링 작업 큐
 const renderQueue = [];
 let isRendering = false;
 
 async function processQueue() {
   if (isRendering || renderQueue.length === 0) return;
-
   isRendering = true;
+
   const task = renderQueue.shift();
-  const {
-    file, userId, token, fileName,
-    outputPath, uploadDir, FILEBROWSER_URL, res
-  } = task;
+  const { file, token, fileName, outputPath, uploadDir, FILEBROWSER_URL } = task;
 
   const keyshotPath = findKeyShotPath();
   if (!keyshotPath) {
     fs.unlinkSync(file.path);
-    res.status(500).json({ message: 'KeyShot 실행파일을 찾을 수 없습니다.' });
+    console.error('[ERROR] KeyShot 실행파일을 찾을 수 없습니다.');
     isRendering = false;
     return processQueue();
   }
@@ -58,8 +54,8 @@ async function processQueue() {
   keyshot.on('close', async (code) => {
     if (code !== 0) {
       fs.unlinkSync(file.path);
+      console.error(`[ERROR] 렌더링 실패: ${fileName}`);
       isRendering = false;
-      res.status(500).json({ message: '렌더링 실패' });
       return processQueue();
     }
 
@@ -76,17 +72,15 @@ async function processQueue() {
         }
       });
 
+      console.log(`[SUCCESS] 렌더링 및 업로드 완료: ${fileName}.png`);
       fs.unlinkSync(file.path);
       fs.unlinkSync(outputPath);
-
-      res.json({ message: '렌더링 완료 및 업로드 성공', file: `${fileName}.png` });
     } catch (err) {
-      console.error('업로드 실패:', err);
+      console.error(`[ERROR] 업로드 실패: ${fileName}`, err);
       try {
         fs.unlinkSync(file.path);
         fs.unlinkSync(outputPath);
       } catch {}
-      res.status(500).json({ message: '파일 업로드 실패' });
     }
 
     isRendering = false;
@@ -94,10 +88,8 @@ async function processQueue() {
   });
 }
 
-// ✅ 허용 확장자
 const allowedExtensions = ['.bip', '.ksp', '.fbx', '.obj', '.stp', '.step', '.iges', '.igs', '.3ds'];
 
-// ✅ POST /render 다중 파일 순차 렌더링
 router.post('/', upload.array('files'), async (req, res) => {
   const files = req.files;
   const token = req.headers.authorization?.split(' ')[1];
@@ -107,25 +99,28 @@ router.post('/', upload.array('files'), async (req, res) => {
     return res.status(400).json({ message: '파일 또는 인증 토큰 누락' });
   }
 
-  const userId = extractUserId(token);
-  const uploadDir = path.join('rendered', userId);
-  mkdirp.sync(uploadDir);
+  const keyshotPath = findKeyShotPath();
+  if (!keyshotPath) {
+    console.error('[ERROR] KeyShot 실행파일을 찾을 수 없습니다.');
+    return res.status(500).json({ message: 'KeyShot 실행파일을 찾을 수 없습니다.' });
+  }
 
+  const uploadDir = 'rendered';
+  mkdirp.sync(uploadDir);
   let validCount = 0;
 
   for (const file of files) {
     const ext = path.extname(file.originalname).toLowerCase();
-
     if (!allowedExtensions.includes(ext)) {
       try { fs.unlinkSync(file.path); } catch {}
-      console.warn(`⛔️ 지원되지 않는 확장자 무시됨: ${ext}`);
+      console.warn(`[SKIP] 지원되지 않는 확장자: ${file.originalname}`);
       continue;
     }
 
-    const fileName = path.parse(file.originalname).name;
+    const fileName = String(path.parse(file.originalname).name);
     const outputPath = path.join(uploadDir, `${fileName}.png`);
 
-    renderQueue.push({ file, userId, token, fileName, outputPath, uploadDir, FILEBROWSER_URL, res });
+    renderQueue.push({ file, token, fileName, outputPath, uploadDir, FILEBROWSER_URL });
     validCount++;
   }
 

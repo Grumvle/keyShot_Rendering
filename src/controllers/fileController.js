@@ -1,6 +1,5 @@
 const express = require('express');
 const axios = require('axios');
-const { extractUserId } = require('../utils/jwtUtil');
 require('dotenv').config();
 
 const router = express.Router();
@@ -14,7 +13,6 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    const userId = extractUserId(token);
 
     const response = await axios.get(`${FILEBROWSER_URL}/api/tus/KeyShot/`, {
         headers: {
@@ -26,7 +24,7 @@ router.get('/', async (req, res) => {
 
     const files = response.data.items.map(item => ({
       name: item.name,
-      url: `${FILEBROWSER_URL}/rendered/${userId}/${encodeURIComponent(item.name)}`
+      url: `${FILEBROWSER_URL}/rendered/${encodeURIComponent(item.name)}`
     }));
 
     res.json({ files });
