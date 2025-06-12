@@ -1,19 +1,17 @@
+# render.py
 import lux
-import sys
-import argparse
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--output', required=True)
-parser.add_argument('--width', type=int, default=1920)
-parser.add_argument('--height', type=int, default=1080)
-parser.add_argument('--samples', type=int, default=32)
-args = parser.parse_args()
 
 scene = lux.getScene()
+
+output = lux.getArgument('--output')
+width = int(lux.getArgument('--width') or 1920)
+height = int(lux.getArgument('--height') or 1080)
+samples = int(lux.getArgument('--samples') or 32)
+
 camera = scene.getCamera()
-camera.setResolution(args.width, args.height)
+camera.setResolution(width, height)
 
 rendering = lux.getRenderingSettings()
-rendering.setSamples(args.samples)
+rendering.setSamples(samples)
 
-lux.renderImage(args.output)
+scene.render(output)
