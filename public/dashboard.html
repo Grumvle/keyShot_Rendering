@@ -25,9 +25,16 @@
     .file-section, .result-section {
       margin-bottom: 24px;
     }
-    input[type="file"] {
+    input[type="file"], input[type="number"] {
       display: block;
       margin-bottom: 16px;
+      width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    label {
+      margin-bottom: 8px;
+      font-weight: bold;
     }
     button {
       background-color: #007bff;
@@ -64,6 +71,12 @@
 
     <div class="file-section">
       <input type="file" id="upload-input" multiple>
+      <label for="width">Width</label>
+      <input type="number" id="width" value="1920">
+      <label for="height">Height</label>
+      <input type="number" id="height" value="1080">
+      <label for="samples">Samples</label>
+      <input type="number" id="samples" value="32">
       <button onclick="uploadFiles()">렌더링 시작</button>
     </div>
 
@@ -83,13 +96,16 @@
 
     async function uploadFiles() {
       const input = document.getElementById('upload-input');
+      const width = document.getElementById('width').value;
+      const height = document.getElementById('height').value;
+      const samples = document.getElementById('samples').value;
       const files = input.files;
       if (!files.length) return alert('파일을 선택하세요.');
 
       for (const file of files) {
-        const ext = file.name.split('.').pop().toLowerCase();
-        if (!allowedExtensions.includes('.' + ext)) {
-          alert(`지원되지 않는 파일 형식입니다: .${ext}`);
+        const ext = '.' + file.name.split('.').pop().toLowerCase();
+        if (!allowedExtensions.includes(ext)) {
+          alert(`지원되지 않는 파일 형식입니다: ${ext}`);
           return;
         }
       }
@@ -99,51 +115,36 @@
       for (const file of files) {
         formData.append('files', file);
       }
+      formData.append('width', width);
+      formData.append('height', height);
+      formData.append('samples', samples);
 
       const res = await fetch('/render', {
         method: 'POST',
-        headers: { Authorization: 'Bearer ' + token },
+        headers: { 'x-auth': token },
         body: formData
       });
 
       const result = await res.json();
-      if (res.ok && result.jobId) {
-        pollJobStatus(result.jobId);
+      if (res.ok) {
+        alert(result.message || '렌더링 요청이 정상적으로 접수되었습니다.');
+        fetchFileList();
       } else {
         alert('렌더링 요청 실패: ' + (result.message || 'Unknown error'));
       }
     }
 
-    async function pollJobStatus(jobId) {
-      const token = localStorage.getItem('token');
-      const interval = setInterval(async () => {
-        const res = await fetch(`/render/status/${jobId}`, {
-          headers: { Authorization: 'Bearer ' + token }
-        });
-        const result = await res.json();
-
-        if (result.status === 'success') {
-          clearInterval(interval);
-          alert('렌더링 완료!');
-          fetchFileList();
-        } else if (result.status === 'error') {
-          clearInterval(interval);
-          alert('렌더링 실패: ' + result.message);
-        }
-      }, 3000);
-    }
-
     async function fetchFileList() {
       const token = localStorage.getItem('token');
       const res = await fetch('/render/files', {
-        headers: { Authorization: 'Bearer ' + token }
+        headers: { 'x-auth': token }
       });
 
       const result = await res.json();
       const fileList = document.getElementById('file-list');
       fileList.innerHTML = '';
 
-      result.files.forEach(file => {
+      (result.files || []).forEach(file => {
         const li = document.createElement('li');
         const a = document.createElement('a');
         a.href = file.url;
