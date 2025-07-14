@@ -13,12 +13,12 @@ const FormData = require('form-data');
 const mkdirp = require('mkdirp');
 require('dotenv').config();
 
-const pythonScriptPath = path.resolve(__dirname, '../scripts/render.py');
+const pythonScriptPath = path.resolve(__dirname, '../scripts/render_gui.py');
 
 function findKeyShotPath() {
   const possiblePaths = [
-    'C:\\Program Files\\KeyShot12\\bin\\keyshot_headless.exe',
-    'C:\\Program Files\\Luxion\\KeyShot\\bin\\keyshot_headless.exe',
+    'C:\\Program Files\\KeyShot12\\bin\\keyshot.exe',
+    'C:\\Program Files\\Luxion\\KeyShot\\bin\\keyshot.exe',
     process.env.KEYSHOT_EXE
   ];
   return possiblePaths.find(p => p && fs.existsSync(p)) || null;
@@ -108,6 +108,35 @@ async function processQueue() {
 }
 
 const allowedExtensions = ['.bip'];
+
+// 렌더링 완료된 파일 목록 조회
+router.get('/files', async (req, res) => {
+  const token = req.headers['x-auth'] || req.headers['authorization']?.split(' ')[1];
+  const FILEBROWSER_URL = process.env.FILEBROWSER_URL;
+
+  if (!token) {
+    return res.status(401).json({ message: '인증 토큰 없음' });
+  }
+
+  try {
+    const response = await axios.get(`${FILEBROWSER_URL}/api/tus/KeyShot/`, {
+      headers: {
+        'X-Auth': token,
+        'Cookie': `auth=${token}`
+      }
+    });
+
+    const files = response.data.items.map(item => ({
+      name: item.name,
+      url: `${FILEBROWSER_URL}/api/tus/KeyShot/${encodeURIComponent(item.name)}`
+    }));
+
+    res.json({ files });
+  } catch (err) {
+    console.error('파일 목록 조회 실패:', err.message);
+    res.status(500).json({ message: '파일 목록 조회 실패' });
+  }
+});
 
 router.post('/', upload.array('files'), async (req, res) => {
   const files = req.files;
