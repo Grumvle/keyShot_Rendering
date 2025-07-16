@@ -126,10 +126,10 @@ router.get('/files', async (req, res) => {
       }
     });
 
-    const files = response.data.items.map(item => ({
+    const files = response.data.items ? response.data.items.map(item => ({
       name: item.name,
       url: `${FILEBROWSER_URL}/api/tus/KeyShot/${encodeURIComponent(item.name)}`
-    }));
+    })) : [];
 
     res.json({ files });
   } catch (err) {

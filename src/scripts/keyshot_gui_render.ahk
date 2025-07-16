@@ -8,8 +8,46 @@ Width := A_Args[3]
 Height := A_Args[4]
 Samples := A_Args[5]
 
+; 매개변수 유효성 검사
+if (!InputFile || !OutputFile || !Width || !Height || !Samples) {
+    FileAppend, ERROR: 매개변수 누락`n, CONOUT$
+    ExitApp, 1
+}
+
+; 입력 파일 존재 확인
+if (!FileExist(InputFile)) {
+    FileAppend, ERROR: 입력 파일을 찾을 수 없습니다: %InputFile%`n, CONOUT$
+    ExitApp, 1
+}
+
+FileAppend, 입력 파일: %InputFile%`n, CONOUT$
+FileAppend, 출력 파일: %OutputFile%`n, CONOUT$
+FileAppend, 해상도: %Width% x %Height%`n, CONOUT$
+FileAppend, 샘플수: %Samples%`n, CONOUT$
+
+; KeyShot 실행파일 찾기
+KeyShotPaths := ["C:\Program Files\KeyShot12\bin\keyshot.exe"
+                , "C:\Program Files\Luxion\KeyShot\bin\keyshot.exe"
+                , "C:\Program Files (x86)\KeyShot12\bin\keyshot.exe"
+                , "C:\Program Files (x86)\Luxion\KeyShot\bin\keyshot.exe"]
+
+KeyShotExe := ""
+for index, path in KeyShotPaths {
+    if (FileExist(path)) {
+        KeyShotExe := path
+        break
+    }
+}
+
+if (!KeyShotExe) {
+    FileAppend, ERROR: KeyShot 실행파일을 찾을 수 없습니다`n, CONOUT$
+    ExitApp, 1
+}
+
+FileAppend, KeyShot 실행파일: %KeyShotExe%`n, CONOUT$
+
 ; KeyShot 실행
-Run, "C:\Program Files\KeyShot12\bin\keyshot.exe"
+Run, "%KeyShotExe%"
 WinWaitActive, KeyShot, , 30
 if ErrorLevel {
     FileAppend, ERROR: KeyShot 실행 실패`n, CONOUT$
